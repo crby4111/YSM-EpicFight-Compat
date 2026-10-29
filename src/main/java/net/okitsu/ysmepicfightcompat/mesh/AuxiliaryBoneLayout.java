@@ -13,9 +13,9 @@ import java.util.Map;
 
 /** Assigns stable private pose indices to YSM bones without extending Epic Fight's armature. */
 public final class AuxiliaryBoneLayout {
-    /** Epic Fight's compute skinning arrays contain 1000 pose slots. */
-    public static final int MAX_TOTAL_POSES = 1000;
-    public static final int MAX_MODEL_BONES = MAX_TOTAL_POSES - HumanoidRig.EPIC_JOINT_COUNT;
+    /** Bounded CPU pose capacity; GPU capacity is checked separately at drawing time. */
+    public static final int MAX_MODEL_BONES = 4096;
+    public static final int MAX_TOTAL_POSES = MAX_MODEL_BONES + HumanoidRig.EPIC_JOINT_COUNT;
 
     public record Entry(GeometryDocument.Bone bone, int auxiliaryIndex, int poseIndex,
                         int anchorJoint, int parentAuxiliaryIndex,
@@ -79,8 +79,17 @@ public final class AuxiliaryBoneLayout {
         return create(geometry, 1.0F, 1.0F);
     }
 
+    private static void requireCapacity(GeometryDocument geometry) {
+        if (geometry.bones().size() > MAX_MODEL_BONES) {
+            throw new IllegalArgumentException("Model contains " + geometry.bones().size()
+                    + " bones; CPU pose limit is " + MAX_MODEL_BONES
+                    + ". Refusing a partially mapped model.");
+        }
+    }
+
     public static AuxiliaryBoneLayout create(GeometryDocument geometry,
                                              float horizontalScale, float verticalScale) {
+        requireCapacity(geometry);
         return create(geometry, horizontalScale, verticalScale, RigBindingPlan.create(geometry));
     }
 
@@ -88,6 +97,7 @@ public final class AuxiliaryBoneLayout {
     public static AuxiliaryBoneLayout create(GeometryDocument geometry,
                                              float horizontalScale, float verticalScale,
                                              RigBindingPlan rigBindings) {
+        requireCapacity(geometry);
         List<Entry> entries = new ArrayList<>();
         Map<GeometryDocument.Bone, Entry> byBone = new IdentityHashMap<>();
         Map<String, Entry> byName = new java.util.LinkedHashMap<>();

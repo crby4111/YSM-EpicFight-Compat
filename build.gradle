@@ -148,6 +148,34 @@ tasks.named('test', Test).configure {
     exclude '**/AnimationPerformanceBenchmarkTest.class'
 }
 
+// Development-only external viewer. Reuses the production CPU evaluator; no game is launched.
+sourceSets {
+    preview {
+        java.srcDir 'src/preview/java'
+        compileClasspath += sourceSets.main.output + sourceSets.test.runtimeClasspath
+        runtimeClasspath += sourceSets.main.output + sourceSets.test.runtimeClasspath
+    }
+}
+tasks.register('prepareMotionPreview') {
+    group = 'application'
+    description = 'Compiles the local, offline motion preview worker and writes its launch metadata.'
+    dependsOn tasks.named('previewClasses')
+    def metadata = layout.buildDirectory.file('motion-preview/runtime.json')
+    outputs.file(metadata)
+    inputs.property('modVersion', mod_version)
+    doLast {
+        def java17 = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(17) }.get()
+        def output = metadata.get().asFile
+        output.parentFile.mkdirs()
+        output.text = groovy.json.JsonOutput.toJson([
+                java: java17.executablePath.asFile.absolutePath,
+                classpath: sourceSets.preview.runtimeClasspath.asPath,
+                main: 'net.okitsu.ysmepicfightcompat.animation.MotionPreviewWorker',
+                version: mod_version
+        ])
+    }
+}
+
 // Opt-in synthetic CPU/allocation measurements; never part of the normal check task.
 tasks.register('animationBenchmark', Test) {
     group = 'verification'

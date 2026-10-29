@@ -77,8 +77,9 @@ class ModelDiskCacheTest {
                 new ModelDiskCache.Entry(secondDigest, secondDigest, secondPayload), 4096));
         Path first = root.resolve(ModelDiskCache.hashKey("first") + ".cache");
         Path second = root.resolve(ModelDiskCache.hashKey("second") + ".cache");
-        Files.setLastModifiedTime(first, FileTime.fromMillis(1_000));
-        Files.setLastModifiedTime(second, FileTime.fromMillis(2_000));
+        // FAT/exFAT cannot represent the Unix epoch. Only relative LRU order matters.
+        Files.setLastModifiedTime(first, FileTime.fromMillis(1_600_000_000_000L));
+        Files.setLastModifiedTime(second, FileTime.fromMillis(1_600_000_002_000L));
 
         ModelDiskCache.maintain(root, Files.size(second));
 
@@ -102,7 +103,7 @@ class ModelDiskCacheTest {
         assertTrue(ModelDiskCache.write(root, firstKey,
                 new ModelDiskCache.Entry(newDigest, newDigest, replacement), 4096));
         Path updatedFile = root.resolve(ModelDiskCache.hashKey(firstKey) + ".cache");
-        FileTime age = FileTime.fromMillis(2_000L);
+        FileTime age = FileTime.fromMillis(1_600_000_002_000L);
         Files.setLastModifiedTime(updatedFile, age);
 
         assertFalse(ModelDiskCache.removeIfPayloadDigestMatches(root, firstKey, oldDigest));

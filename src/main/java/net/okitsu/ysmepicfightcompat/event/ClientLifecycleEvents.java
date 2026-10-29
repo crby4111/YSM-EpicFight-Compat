@@ -10,6 +10,7 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLLoadCompleteEvent;
 import net.okitsu.ysmepicfightcompat.CompatMod;
 import net.okitsu.ysmepicfightcompat.compat.YSMCompatibilityWarningFilter;
+import net.okitsu.ysmepicfightcompat.config.MotionRulesClient;
 import net.okitsu.ysmepicfightcompat.mesh.CombatMeshCache;
 import net.okitsu.ysmepicfightcompat.network.ClientSubEntityModelPreferences;
 import net.okitsu.ysmepicfightcompat.network.geometry.ClientModelTransfers;
@@ -40,6 +41,7 @@ public final class ClientLifecycleEvents {
     @SubscribeEvent
     public static void installReloadListener(RegisterClientReloadListenersEvent event) {
         event.registerReloadListener((ResourceManagerReloadListener) resources -> {
+            MotionRulesClient.reload(resources);
             ClientSubEntityModelPreferences.modelDefinitionsUpdated();
             PlayerSelectionResolver.clear();
             ClientModelTransfers.clear();

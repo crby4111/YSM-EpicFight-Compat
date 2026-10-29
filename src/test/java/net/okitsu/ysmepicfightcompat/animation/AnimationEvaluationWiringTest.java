@@ -190,7 +190,10 @@ class AnimationEvaluationWiringTest {
         assertEquals(Opcodes.ALOAD, tail.get(0).opcode);
         assertTrue(tail.get(1).matches(Opcodes.GETFIELD, STATE, "publishedFrame"));
         assertEquals(Opcodes.ARETURN, tail.get(2).opcode);
-        assertEquals(2, code.steps.stream().filter(step -> step.opcode == Opcodes.ARETURN).count());
+        // The opt-in policy is a separate evaluator with its own admission limiter.
+        assertEquals(1, code.calls(PROGRAM, "sampleUserMotion"));
+        assertTrue(code.call(PROGRAM, "sampleUserMotion") < code.call(LIMITER, "shouldEvaluate"));
+        assertEquals(3, code.steps.stream().filter(step -> step.opcode == Opcodes.ARETURN).count());
     }
 
     @Test

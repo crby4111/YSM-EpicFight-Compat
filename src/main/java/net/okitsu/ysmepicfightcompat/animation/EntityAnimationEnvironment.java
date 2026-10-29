@@ -93,6 +93,8 @@ final class EntityAnimationEnvironment implements MolangScriptRuntime.Host {
     private boolean renderingInPaperdoll;
     private boolean firstPersonModHide;
     private boolean groundSpeed2Resolved;
+    private boolean parCoolControllerStateResolved;
+    private String parCoolControllerState = "";
     private double groundSpeed2;
 
     EntityAnimationEnvironment(LivingEntity entity, Map<Integer, Double> variables,
@@ -139,6 +141,7 @@ final class EntityAnimationEnvironment implements MolangScriptRuntime.Host {
         cameraPositionResolved = false;
         cachedCameraPosition = null;
         groundSpeed2Resolved = false;
+        parCoolControllerStateResolved = false;
         if (permitsExternalEffects(preview)) ClientParticleOutput.update(entity);
     }
 
@@ -252,6 +255,8 @@ final class EntityAnimationEnvironment implements MolangScriptRuntime.Host {
     }
 
     void reset() {
+        parCoolControllerStateResolved = false;
+        parCoolControllerState = "";
         typedVariables.clear();
         if (scripts != null) scripts.reset();
         physics.reset();
@@ -550,6 +555,7 @@ final class EntityAnimationEnvironment implements MolangScriptRuntime.Host {
             if (scripted != MolangScriptRuntime.UNHANDLED) return scripted;
         }
         return switch (ExpressionEngine.slotName(slot)) {
+            case "ctrl.parcool_state" -> parCoolControllerState();
             case "ysm.projectile_owner" -> OfficialEntityReferences.projectileOwner(entity);
             case "ysm.texture_name" -> selectedTextureName();
             case "ysm.dimension_name" -> entity.level().dimension().location().toString();
@@ -561,6 +567,21 @@ final class EntityAnimationEnvironment implements MolangScriptRuntime.Host {
             case "ysm.hit_target_type" -> hitTarget(true);
             default -> readQuery(slot);
         };
+    }
+
+    private String parCoolControllerState() {
+        if (!parCoolControllerStateResolved) {
+            var sample = net.okitsu.ysmepicfightcompat.integration.parcool.ParCoolAnimationStateAccess
+                    .sample(entity, partialTick);
+            parCoolControllerState = parCoolControllerValue(sample == null ? null : sample.clipName());
+            parCoolControllerStateResolved = true;
+        }
+        return parCoolControllerState;
+    }
+
+    static String parCoolControllerValue(@Nullable String clipName) {
+        return ModAnimationClips.type(clipName) == ModAnimationType.PARCOOL
+                ? clipName.substring("parcool:".length()) : "";
     }
 
     @Override

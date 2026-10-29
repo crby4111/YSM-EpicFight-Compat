@@ -24,6 +24,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.okitsu.ysmepicfightcompat.animation.MovementAnimationType;
+import net.okitsu.ysmepicfightcompat.config.MotionRulesClient;
 import net.okitsu.ysmepicfightcompat.mesh.CombatMeshCache;
 import net.okitsu.ysmepicfightcompat.mesh.CompatHumanoidMesh;
 import net.okitsu.ysmepicfightcompat.network.ClientMovementAnimationPreferences;
@@ -97,6 +98,18 @@ public final class CombatPlayerRenderer extends PHumanoidRenderer<
         boolean ysmModAnimation = configuredModAnimation(entity, partialTick);
         MovementAnimationType ysmMovement = ysmModAnimation ? null : configuredFullBodyMovement(
                 entity, epicFightActionActive);
+        if (MotionRulesClient.snapshot().rules().enabled()) {
+            var selection = PlayerSelectionResolver.current(entity);
+            var mesh = selection == null ? null : CombatMeshCache.readyMesh(selection.modelId());
+            MovementAnimationType planned = mesh == null ? null : mesh.plannedUserMovement(entity);
+            if (planned != null) {
+                Float facing = isLadderMovement(planned) ? officialLadderYaw(entity) : null;
+                float referenceYaw = usesOfficialBodyYaw(planned)
+                        ? officialBodyYaw(entity.yBodyRotO, entity.yBodyRot, partialTick)
+                        : facing == null ? epicModelYaw : facing;
+                ysmMovement = mesh.prepareUserPose(entity, partialTick, referenceYaw) ? planned : null;
+            } else ysmMovement = null;
+        }
         Float ladderYaw = isLadderMovement(ysmMovement)
                 ? officialLadderYaw(entity) : null;
         float renderedModelYaw = ysmModAnimation || usesOfficialBodyYaw(ysmMovement)
@@ -148,6 +161,7 @@ public final class CombatPlayerRenderer extends PHumanoidRenderer<
     }
 
     private static boolean configuredModAnimation(AbstractClientPlayer entity, float partialTick) {
+        if (MotionRulesClient.snapshot().rules().enabled()) return false;
         if (!CombatMeshResolver.hasReadyMesh(entity)) return false;
         PlayerSelectionResolver.Selection selection = PlayerSelectionResolver.current(entity);
         if (selection == null) return false;
@@ -158,6 +172,11 @@ public final class CombatPlayerRenderer extends PHumanoidRenderer<
     @Nullable
     private static MovementAnimationType configuredFullBodyMovement(
             AbstractClientPlayer entity, boolean epicFightActionActive) {
+        if (MotionRulesClient.snapshot().rules().enabled()) {
+            PlayerSelectionResolver.Selection selection = PlayerSelectionResolver.current(entity);
+            CompatHumanoidMesh mesh = selection == null ? null : CombatMeshCache.readyMesh(selection.modelId());
+            return mesh == null ? null : mesh.userMovement(entity, false);
+        }
         if (epicFightActionActive || !CombatMeshResolver.hasReadyMesh(entity)) {
             return null;
         }

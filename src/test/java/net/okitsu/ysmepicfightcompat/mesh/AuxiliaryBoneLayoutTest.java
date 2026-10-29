@@ -11,6 +11,32 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 class AuxiliaryBoneLayoutTest {
     @Test
+    void modelsBeyondTheGpuPaletteKeepIndependentCpuBoneSlots() {
+        GeometryDocument geometry = new GeometryDocument();
+        add(geometry, "Head", null, 0, 20, 0);
+        for (int i=0;i<1973;i++) add(geometry,"secondary"+i,"Head",0,20,0);
+        geometry.linkHierarchy();
+        AuxiliaryBoneLayout layout=AuxiliaryBoneLayout.create(geometry);
+        assertEquals(1974,layout.entries().size());
+        assertEquals(1994,layout.totalPoseCount());
+        var last=layout.entryForBoneName("secondary1972");
+        assertNotNull(last);
+        assertEquals(1993,last.poseIndex());
+        assertEquals(last.poseIndex(),layout.poseIndexFor(last.bone()));
+        org.junit.jupiter.api.Assertions.assertFalse(CompatHumanoidMesh.withinComputePoseCapacity(
+                layout.totalPoseCount(),0,0));
+    }
+
+    @Test
+    void excessiveModelsFailInsteadOfSilentlyDroppingTailBones() {
+        GeometryDocument geometry=new GeometryDocument();
+        for(int i=0;i<=AuxiliaryBoneLayout.MAX_MODEL_BONES;i++)add(geometry,"bone"+i,null,0,0,0);
+        geometry.linkHierarchy();
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                ()->AuxiliaryBoneLayout.create(geometry));
+    }
+
+    @Test
     void headAttachmentsUseTheMovingHeadOnlyWhenTheTerminalHeadIsMissing() {
         GeometryDocument geometry = new GeometryDocument();
         add(geometry, "UpperBody", null, 0.0F, 12.0F, 0.0F);

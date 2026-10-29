@@ -1,0 +1,10 @@
+{
+  "key.categories.ysm_epicfight_compat": "YSM 史诗战斗适配",
+  "key.ysm_epicfight_compat.report": "记录模型或动作问题",
+  "message.ysm_epicfight_compat.report.world_required": "请进入世界后再记录问题。",
+  "message.ysm_epicfight_compat.report.busy": "正在记录问题，请稍后再试。",
+  "message.ysm_epicfight_compat.report.armed": "正在记录下一帧模型，请保持游戏画面。",
+  "message.ysm_epicfight_compat.report.cancelled": "世界或角色已变化，本次问题记录已取消。",
+  "message.ysm_epicfight_compat.report.failed": "问题记录保存失败，请查看最新日志。",
+  "message.ysm_epicfight_compat.report.saved": "问题记录已保存：%s"
+}

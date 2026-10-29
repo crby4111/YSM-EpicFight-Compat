@@ -1,4 +1,12 @@
 {
+  "key.categories.ysm_epicfight_compat": "YSM Epic Fight Compatibility",
+  "key.ysm_epicfight_compat.report": "Record a model or animation issue",
+  "message.ysm_epicfight_compat.report.world_required": "Enter a world before recording an issue.",
+  "message.ysm_epicfight_compat.report.busy": "An issue report is being saved. Please try again shortly.",
+  "message.ysm_epicfight_compat.report.armed": "Recording the next model frame. Keep the game view open.",
+  "message.ysm_epicfight_compat.report.cancelled": "World or player changed; issue capture cancelled.",
+  "message.ysm_epicfight_compat.report.failed": "Could not save the issue report. See the latest log.",
+  "message.ysm_epicfight_compat.report.saved": "Issue report saved: %s",
   "config.ysm_epicfight_compat.client": "Client",
   "config.ysm_epicfight_compat.client.tooltip": "Client-side YSM and Epic Fight compatibility settings.",
   "config.ysm_epicfight_compat.client.cache": "Cache",

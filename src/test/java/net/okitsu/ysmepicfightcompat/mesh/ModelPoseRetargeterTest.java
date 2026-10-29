@@ -4,6 +4,8 @@ import net.okitsu.ysmepicfightcompat.geometry.GeometryDocument;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import yesman.epicfight.api.animation.Joint;
 import yesman.epicfight.api.animation.JointTransform;
 import yesman.epicfight.api.animation.Pose;
@@ -21,14 +23,16 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ModelPoseRetargeterTest {
-    @Test
-    void keepsTheAuthoredShoulderSeamConnectedOnAnExtendedRotatedMaidArmature() {
-        GeometryDocument geometry = magicalRightArmGeometry();
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void keepsBothAuthoredShoulderSeamsConnectedOnStandardAndExtendedArmatures(
+            boolean extended) {
+        GeometryDocument geometry = magicalBilateralArmGeometry();
         float modelScale = 0.65F;
         AuxiliaryBoneLayout layout = AuxiliaryBoneLayout.create(
                 geometry, modelScale, modelScale);
 
-        Armature armature = extendedRotatedMaidArmature();
+        Armature armature = rotatedArmature(extended);
         Pose attack = new Pose();
         attack.putJointData("Chest", JointTransform.rotation(new Quaternionf()
                 .rotateXYZ(radians(-18.0F), radians(22.0F), radians(9.0F))));
@@ -36,22 +40,23 @@ class ModelPoseRetargeterTest {
                 .rotateXYZ(radians(58.0F), radians(-31.0F), radians(27.0F))));
         attack.putJointData("Arm_R", JointTransform.rotation(new Quaternionf()
                 .rotateXYZ(radians(-36.0F), radians(44.0F), radians(73.0F))));
+        attack.putJointData("Shoulder_L", JointTransform.rotation(new Quaternionf()
+                .rotateXYZ(radians(-43.0F), radians(28.0F), radians(-35.0F))));
+        attack.putJointData("Arm_L", JointTransform.rotation(new Quaternionf()
+                .rotateXYZ(radians(29.0F), radians(-39.0F), radians(-67.0F))));
         armature.setPose(attack);
 
         OpenMatrix4f[] retargeted = new ModelPoseRetargeter(layout).retarget(
                 armature, armature.getPoseMatrices());
         assertNotNull(retargeted);
 
-        GeometryDocument.Bone rightArm = geometry.bones().get("RightArm");
-        Vector3f authoredShoulder = new Vector3f(
-                rightArm.pivotX() * modelScale,
-                rightArm.pivotY() * modelScale,
-                rightArm.pivotZ() * modelScale);
         // Skin matrices on both sides of an authored YSM joint must map the same bind
         // point to the same animated point. This verifies the visible body/arm seam,
         // rather than merely checking that retargeting returned an array.
-        assertPointEquals(transform(retargeted[HumanoidRig.CHEST], authoredShoulder),
-                transform(retargeted[HumanoidRig.RIGHT_ARM], authoredShoulder));
+        assertShoulderSeamConnected(
+                retargeted, geometry, "RightArm", HumanoidRig.RIGHT_ARM, modelScale);
+        assertShoulderSeamConnected(
+                retargeted, geometry, "LeftArm", HumanoidRig.LEFT_ARM, modelScale);
     }
 
     @Test
@@ -97,6 +102,41 @@ class ModelPoseRetargeterTest {
 
         assertNotNull(retargeted,
                 "optional integration joints must not disable humanoid bind retargeting");
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void keepsBothElbowsConnectedDespiteRaisedForearmGeometry(boolean extended) {
+        GeometryDocument geometry = magicalBilateralArmGeometry();
+        float modelScale = 0.65F;
+        AuxiliaryBoneLayout layout = AuxiliaryBoneLayout.create(
+                geometry, modelScale, modelScale);
+        Armature armature = rotatedArmature(extended);
+        Pose guard = new Pose();
+        guard.putJointData("Chest", JointTransform.rotation(new Quaternionf()
+                .rotateXYZ(radians(-15.0F), radians(25.0F), radians(12.0F))));
+        guard.putJointData("Arm_R", JointTransform.rotation(new Quaternionf()
+                .rotateXYZ(radians(30.0F), radians(-25.0F), radians(45.0F))));
+        guard.putJointData("Arm_L", JointTransform.rotation(new Quaternionf()
+                .rotateXYZ(radians(-40.0F), radians(20.0F), radians(-35.0F))));
+        guard.putJointData("Hand_R", JointTransform.rotation(new Quaternionf()
+                .rotateXYZ(radians(75.0F), radians(-30.0F), radians(20.0F))));
+        guard.putJointData("Hand_L", JointTransform.rotation(new Quaternionf()
+                .rotateXYZ(radians(-85.0F), radians(25.0F), radians(-15.0F))));
+        armature.setPose(guard);
+        OpenMatrix4f[] retargeted = new ModelPoseRetargeter(layout).retarget(
+                armature, armature.getPoseMatrices());
+        assertNotNull(retargeted);
+        for (String side : new String[]{"Right", "Left"}) {
+            AuxiliaryBoneLayout.Entry forearm = layout.entryForBoneName(side + "ForeArm");
+            GeometryDocument.Bone bone = forearm.bone();
+            Vector3f elbow = new Vector3f(bone.pivotX(), bone.pivotY(), bone.pivotZ())
+                    .mulPosition(forearm.bindWorld()).mul(modelScale);
+            int arm = side.equals("Right") ? HumanoidRig.RIGHT_ARM : HumanoidRig.LEFT_ARM;
+            int hand = side.equals("Right") ? HumanoidRig.RIGHT_HAND : HumanoidRig.LEFT_HAND;
+            assertPointEquals(transform(retargeted[arm], elbow),
+                    transform(retargeted[hand], elbow));
+        }
     }
 
     @Test
@@ -253,7 +293,7 @@ class ModelPoseRetargeterTest {
         assertEquals(expected.m33, actual.m33, 0.00001F);
     }
 
-    private static GeometryDocument magicalRightArmGeometry() {
+    private static GeometryDocument magicalBilateralArmGeometry() {
         GeometryDocument geometry = new GeometryDocument();
         GeometryDocument.Bone torso = new GeometryDocument.Bone("Torso");
         torso.pivot(0.0F, 0.65F, 0.0F);
@@ -275,15 +315,57 @@ class ModelPoseRetargeterTest {
                 new Vector3f(0.237460F, 1.685718F, -0.008724F)
         }, new float[][]{{0.0F, 0.0F}, {0.0F, 1.0F}, {1.0F, 1.0F}, {1.0F, 0.0F}},
                 new Vector3f(0.0F, 1.0F, 0.0F)));
+        GeometryDocument.Bone leftArm = new GeometryDocument.Bone("LeftArm");
+        leftArm.parentName("Arm");
+        leftArm.pivot(-0.139023F, 1.526655F, 0.092526F);
+        leftArm.rotation(0.0F, 0.0F, radians(-18.0F));
+        leftArm.faces().add(new GeometryDocument.Face(new Vector3f[]{
+                new Vector3f(-0.065875F, 1.685718F, -0.008724F),
+                new Vector3f(-0.065875F, 1.685718F, 0.193776F),
+                new Vector3f(-0.237460F, 1.685718F, 0.193776F),
+                new Vector3f(-0.237460F, 1.685718F, -0.008724F)
+        }, new float[][]{{0.0F, 0.0F}, {0.0F, 1.0F}, {1.0F, 1.0F}, {1.0F, 0.0F}},
+                new Vector3f(0.0F, 1.0F, 0.0F)));
         geometry.add(torso);
         geometry.add(chest);
         geometry.add(armControl);
         geometry.add(rightArm);
+        geometry.add(leftArm);
+        geometry.add(raisedForearm("RightForeArm", "RightArm", 0.2F, 1.25F, 0.08F));
+        geometry.add(raisedForearm("LeftForeArm", "LeftArm", -0.2F, 1.15F, 0.06F));
         geometry.linkHierarchy();
         return geometry;
     }
 
-    private static Armature extendedRotatedMaidArmature() {
+    private static GeometryDocument.Bone raisedForearm(String name, String parent,
+                                                       float x, float y, float z) {
+        GeometryDocument.Bone bone = new GeometryDocument.Bone(name);
+        bone.parentName(parent);
+        bone.pivot(x, y, z);
+        bone.faces().add(new GeometryDocument.Face(new Vector3f[]{
+                new Vector3f(x - 0.1F, y + 0.2F, z - 0.1F),
+                new Vector3f(x + 0.1F, y + 0.2F, z - 0.1F),
+                new Vector3f(x + 0.1F, y + 0.2F, z + 0.1F),
+                new Vector3f(x - 0.1F, y + 0.2F, z + 0.1F)
+        }, new float[][]{{0, 0}, {1, 0}, {1, 1}, {0, 1}},
+                new Vector3f(0, 1, 0)));
+        return bone;
+    }
+
+    private static void assertShoulderSeamConnected(OpenMatrix4f[] retargeted,
+                                                    GeometryDocument geometry,
+                                                    String armName, int armJoint,
+                                                    float modelScale) {
+        GeometryDocument.Bone arm = geometry.bones().get(armName);
+        Vector3f authoredShoulder = new Vector3f(
+                arm.pivotX() * modelScale,
+                arm.pivotY() * modelScale,
+                arm.pivotZ() * modelScale);
+        assertPointEquals(transform(retargeted[HumanoidRig.CHEST], authoredShoulder),
+                transform(retargeted[armJoint], authoredShoulder));
+    }
+
+    private static Armature rotatedArmature(boolean extended) {
         Map<String, Joint> joints = new LinkedHashMap<>();
         Joint root = joint(joints, "Root", HumanoidRig.ROOT,
                 new OpenMatrix4f().translate(-0.000005F, 0.000946F, 0.856268F)
@@ -344,12 +426,14 @@ class ModelPoseRetargeterTest {
         leftShoulder.addSubJoints(leftArm);
         leftArm.addSubJoints(leftHand, leftElbow);
         leftHand.addSubJoints(leftTool);
-        Joint optional = joint(joints, "Claw_R", HumanoidRig.EPIC_JOINT_COUNT,
-                new OpenMatrix4f().translate(0.03F, 0.27F, 0.01F));
-        rightHand.addSubJoints(optional);
+        if (extended) {
+            Joint optional = joint(joints, "Claw_R", HumanoidRig.EPIC_JOINT_COUNT,
+                    new OpenMatrix4f().translate(0.03F, 0.27F, 0.01F));
+            rightHand.addSubJoints(optional);
+        }
 
         Armature armature = new Armature("eftlm_like_extended_humanoid",
-                HumanoidRig.EPIC_JOINT_COUNT + 1, root, joints);
+                HumanoidRig.EPIC_JOINT_COUNT + (extended ? 1 : 0), root, joints);
         armature.bakeOriginMatrices();
         return armature;
     }

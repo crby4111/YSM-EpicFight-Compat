@@ -884,6 +884,16 @@ public final class AuxiliaryPoseMatrices {
         for (int index = 0; index < HumanoidRig.EPIC_JOINT_COUNT; index++) {
             destination[index].load(poses[index]).mulBack(toOrigin[index]);
         }
+        RootTransforms rootTransforms = parallelDeltas == null || replaceEpicFightPose ? null
+                : authoredScratch == null ? new RootTransforms(layout)
+                : authoredScratch.rootTransforms(layout);
+        if (rootTransforms != null) {
+            OpenMatrix4f rootAnchor = retargetedAnchors != null
+                    && retargetedAnchors.length > HumanoidRig.ROOT
+                    && retargetedAnchors[HumanoidRig.ROOT] != null
+                    ? retargetedAnchors[HumanoidRig.ROOT] : destination[HumanoidRig.ROOT];
+            rootTransforms.prepare(parallelDeltas, rootAnchor);
+        }
         for (AuxiliaryBoneLayout.Entry entry : layout.entries()) {
             if (!replaceEpicFightPose && authoredScratch != null
                     && composeAuthoredBranch(layout, entry, destination, authoredDeltas,
@@ -937,12 +947,26 @@ public final class AuxiliaryPoseMatrices {
             boolean suppressParallel = suppressParallelDeltas != null
                     && auxiliary < suppressParallelDeltas.length
                     && suppressParallelDeltas[auxiliary];
+            RootTransform rootTransform = rootTransforms == null ? null
+                    : rootTransforms.forEntry(auxiliary);
+            boolean transportRoot = rootTransform != null && rootTransform.active
+                    && (!replaceAnchor || attachmentAnchor != null) && !suppressParallel
+                    && parallelDeltas != null && auxiliary < parallelDeltas.length;
             if (!suppressParallel && parallelDeltas != null
                     && auxiliary < parallelDeltas.length) {
+                if (transportRoot) {
+                    // The native root is shared by every limb. Keeping its scale inside
+                    // each different EF joint skin moves their rotation centers apart.
+                    // Factor it out once, then transport it through the live EF root.
+                    destination[entry.poseIndex()].mulBack(rootTransform.inverseNative);
+                }
                 // Hair, tails, and other secondary bones live below the authored bow/head
                 // path. Applying them last preserves that local relationship when the bow
                 // owns one connected upper-body island.
                 destination[entry.poseIndex()].mulBack(parallelDeltas[auxiliary]);
+            }
+            if (transportRoot) {
+                destination[entry.poseIndex()].mulFront(rootTransform.transported);
             }
             if (wholeModelDeltas != null && auxiliary < wholeModelDeltas.length) {
                 // Mounted states and roulette clips can move the whole model. Apply their
@@ -1024,6 +1048,86 @@ public final class AuxiliaryPoseMatrices {
         private final Matrix4f parentInverse = new Matrix4f();
         private final Matrix4f nativePose = new Matrix4f();
         private final Matrix4f result = new Matrix4f();
+        private AuxiliaryBoneLayout rootLayout;
+        private RootTransforms roots;
+
+        private RootTransforms rootTransforms(AuxiliaryBoneLayout layout) {
+            if (rootLayout != layout) {
+                rootLayout = layout;
+                roots = new RootTransforms(layout);
+            }
+            return roots;
+        }
+    }
+
+    /** Cached forest membership and one transform per actual model root, not per bone. */
+    private static final class RootTransforms {
+        private final int[] membership;
+        private final RootTransform[] roots;
+
+        private RootTransforms(AuxiliaryBoneLayout layout) {
+            membership = new int[layout.entries().size()];
+            java.util.Arrays.fill(membership, -1);
+            var found = new java.util.ArrayList<RootTransform>();
+            for (AuxiliaryBoneLayout.Entry entry : layout.entries()) {
+                if (entry.parentAuxiliaryIndex() < 0 && entry.anchorJoint() == HumanoidRig.ROOT) {
+                    membership[entry.auxiliaryIndex()] = found.size();
+                    found.add(new RootTransform(entry.auxiliaryIndex()));
+                } else if (entry.parentAuxiliaryIndex() >= 0) {
+                    membership[entry.auxiliaryIndex()] = membership[entry.parentAuxiliaryIndex()];
+                }
+            }
+            roots = found.toArray(RootTransform[]::new);
+        }
+
+        private void prepare(OpenMatrix4f[] deltas, OpenMatrix4f rootAnchor) {
+            for (RootTransform root : roots) root.prepare(deltas, rootAnchor);
+        }
+
+        @Nullable
+        private RootTransform forEntry(int auxiliary) {
+            int index = membership[auxiliary];
+            return index < 0 ? null : roots[index];
+        }
+    }
+
+    private static final class RootTransform {
+        private final int auxiliary;
+        private final OpenMatrix4f inverseNative = new OpenMatrix4f();
+        private final OpenMatrix4f transported = new OpenMatrix4f();
+        private final Matrix4f nativeMatrix = new Matrix4f();
+        private final Matrix4f inverseAnchor = new Matrix4f();
+        private final Matrix4f result = new Matrix4f();
+        private boolean active;
+
+        private RootTransform(int auxiliary) {
+            this.auxiliary = auxiliary;
+        }
+
+        private void prepare(OpenMatrix4f[] deltas, OpenMatrix4f anchor) {
+            active = false;
+            if (auxiliary >= deltas.length || deltas[auxiliary] == null
+                    || !finite(deltas[auxiliary]) || !finite(anchor)) return;
+            load(nativeMatrix, deltas[auxiliary]);
+            load(inverseAnchor, anchor);
+            float nativeDeterminant = nativeMatrix.determinant();
+            float anchorDeterminant = inverseAnchor.determinant();
+            if (!Float.isFinite(nativeDeterminant) || !Float.isFinite(anchorDeterminant)
+                    || Math.abs(nativeDeterminant) <= SINGULAR_DETERMINANT_EPSILON
+                    || Math.abs(anchorDeterminant) <= SINGULAR_DETERMINANT_EPSILON) {
+                // A collapsed native root is a visibility decision. Preserve the finite
+                // original path instead of inverting zero scale and reviving children.
+                return;
+            }
+            store(inverseNative, nativeMatrix.invert());
+            result.set(load(nativeMatrix, anchor))
+                    .mul(load(inverseAnchor, deltas[auxiliary]));
+            load(inverseAnchor, anchor).invert();
+            result.mul(inverseAnchor);
+            if (!finite(result) || !finite(inverseNative)) return;
+            store(transported, result);
+            active = true;
+        }
     }
 
     private static void applyFullBodyBlend(

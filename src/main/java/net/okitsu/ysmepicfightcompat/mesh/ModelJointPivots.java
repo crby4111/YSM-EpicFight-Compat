@@ -264,6 +264,7 @@ final class ModelJointPivots {
         Map<Integer, VerticalExtent> extents = new HashMap<>();
         Map<Integer, Vector3f> lowerLimbPivots = new HashMap<>();
         Map<Integer, PivotCluster> authoredUpperArmPivots = new HashMap<>();
+        Map<Integer, PivotCluster> authoredForearmPivots = new HashMap<>();
         Map<Integer, AnchorCluster> toolLocators = new HashMap<>();
         Map<GeometryDocument.Bone, SegmentCandidate> segments = new IdentityHashMap<>();
         Map<CentralRole, PivotCluster> centralControls = new EnumMap<>(CentralRole.class);
@@ -295,6 +296,16 @@ final class ModelJointPivots {
                 int joint = HumanoidRig.directJointFor(bone);
                 if (isOnCompatibleArmBranch(bone, joint)) {
                     authoredUpperArmPivots.computeIfAbsent(
+                                    joint, ignored -> new PivotCluster())
+                            .include(transformedPivot(
+                                    bone, visit.parentTransform(),
+                                    horizontalScale, verticalScale));
+                }
+            }
+            if (primary && HumanoidRig.isForearmControl(bone)) {
+                int joint = HumanoidRig.directJointFor(bone);
+                if (isOnCompatibleArmBranch(bone, joint)) {
+                    authoredForearmPivots.computeIfAbsent(
                                     joint, ignored -> new PivotCluster())
                             .include(transformedPivot(
                                     bone, visit.parentTransform(),
@@ -383,19 +394,28 @@ final class ModelJointPivots {
         Map<Integer, GeometryDocument.Bone> toolSources = new HashMap<>();
         putTool(result, toolSources, HumanoidRig.RIGHT_TOOL, rightTool);
         putTool(result, toolSources, HumanoidRig.LEFT_TOOL, leftTool);
-        Map<Integer, Vector3f> extendedArmaturePivots = new HashMap<>(result);
-        // EFTLM appends integration joints to its humanoid armature and rotates the
-        // shoulder chain much more aggressively than the standard player armature.
-        // Its upper arms must therefore rotate around the authored Bedrock/YSM bind
-        // pivot. Keep the geometry-derived top ring as the standard-player behavior
-        // and as the fallback for models without one unambiguous primary arm control.
-        replacePair(extendedArmaturePivots,
+        // Shoulder/upper-arm rotations must share the model's authored joint in
+        // every humanoid armature. A mesh's highest ring is not its rotation pivot:
+        // sleeves and a rotated bind pose can move that ring away from the shoulder,
+        // making standard Epic Fight guards and attacks pull the arm off the body.
+        // Retain the geometry estimate only when the primary control is ambiguous
+        // or absent, as we already do for extended integration armatures.
+        replacePair(result,
                 HumanoidRig.RIGHT_SHOULDER, HumanoidRig.RIGHT_ARM,
                 pivotValue(authoredUpperArmPivots, HumanoidRig.RIGHT_ARM));
-        replacePair(extendedArmaturePivots,
+        replacePair(result,
                 HumanoidRig.LEFT_SHOULDER, HumanoidRig.LEFT_ARM,
                 pivotValue(authoredUpperArmPivots, HumanoidRig.LEFT_ARM));
-        return new Estimate(result, toolSources, extendedArmaturePivots);
+        // The same rule applies at the elbow. A raised/rotated sleeve cube must
+        // not move the bend away from ForeArm's authored joint. Hand is also
+        // mapped to EF's forearm joint, but its pivot is the wrist, not the elbow.
+        replacePair(result,
+                HumanoidRig.RIGHT_HAND, HumanoidRig.RIGHT_ELBOW,
+                pivotValue(authoredForearmPivots, HumanoidRig.RIGHT_HAND));
+        replacePair(result,
+                HumanoidRig.LEFT_HAND, HumanoidRig.LEFT_ELBOW,
+                pivotValue(authoredForearmPivots, HumanoidRig.LEFT_HAND));
+        return new Estimate(result, toolSources, result);
     }
 
     private static Vector3f pivotValue(Map<Integer, PivotCluster> pivots, int joint) {

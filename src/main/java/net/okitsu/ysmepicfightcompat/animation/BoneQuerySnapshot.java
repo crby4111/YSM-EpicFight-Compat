@@ -8,7 +8,7 @@ import java.util.Map;
 /** Immutable previous-completed-frame data; queries never inspect live renderer bones. */
 public final class BoneQuerySnapshot {
     public static final BoneQuerySnapshot EMPTY = new BoneQuerySnapshot(Map.of());
-    private static final int MAX_BONES = 1000;
+    private static final int MAX_BONES = net.okitsu.ysmepicfightcompat.mesh.AuxiliaryBoneLayout.MAX_MODEL_BONES;
     private final Map<String, BoneValues> bones;
 
     /** Rotation is expressed in degrees; positions use authored model units. */

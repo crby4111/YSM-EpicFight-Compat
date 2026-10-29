@@ -13,7 +13,10 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.UseAnim;
 import net.okitsu.ysmepicfightcompat.CompatMod;
 import net.okitsu.ysmepicfightcompat.animation.DefaultPoseProgram;
+import net.okitsu.ysmepicfightcompat.animation.MovementAnimationType;
 import net.okitsu.ysmepicfightcompat.animation.ParallelAnimationProgram;
+import net.okitsu.ysmepicfightcompat.config.MotionRulesClient;
+import net.okitsu.ysmepicfightcompat.diagnostics.IssueReportCapture;
 import net.okitsu.ysmepicfightcompat.integration.tlm.TouhouMaidRenderBridge;
 import net.okitsu.ysmepicfightcompat.render.RenderFrameContext;
 import net.okitsu.ysmepicfightcompat.render.ModelRenderTypes;
@@ -53,6 +56,7 @@ public final class CompatHumanoidMesh extends HumanoidMesh {
     private final DefaultPoseProgram.BoundVisibility visibility;
     private final ParallelAnimationProgram parallelAnimations;
     private final AuxiliaryPoseMatrices auxiliaryPoses;
+    private final AuxiliaryBoneLayout boneLayout;
     private final boolean hasAuthoredBranches;
     private final MovementPoseTransition movementPoseTransition;
     @Nullable
@@ -76,6 +80,7 @@ public final class CompatHumanoidMesh extends HumanoidMesh {
         this.allCutout = allCutout;
         this.renderLayersFirst = renderLayersFirst;
         this.parallelAnimations = parallelAnimations;
+        this.boneLayout = auxiliaryBones;
         hasAuthoredBranches = auxiliaryBones.rigBindings().hasAuthoredBranches();
         hasBaseGeometry = hasGeometry(parts);
         // A parent-backed SkinnedMesh reuses the parent's parts as well as its arrays.
@@ -168,6 +173,21 @@ public final class CompatHumanoidMesh extends HumanoidMesh {
 
     public boolean modAnimationOwnsPose(LivingEntity entity, float partialTick) {
         return parallelAnimations.modAnimationOwnsPose(entity, partialTick);
+    }
+
+    @Nullable
+    public MovementAnimationType userMovement(
+            LivingEntity entity, boolean firstPerson) {
+        return parallelAnimations.userMovement(entity, firstPerson);
+    }
+
+    @Nullable
+    public MovementAnimationType plannedUserMovement(LivingEntity entity) {
+        return parallelAnimations.plannedUserMovement(entity, false);
+    }
+
+    public boolean prepareUserPose(LivingEntity entity, float partialTick, float modelYaw) {
+        return parallelAnimations.prepareUserPose(entity, partialTick, modelYaw);
     }
 
     /** Whether a held-item switch temporarily owns the complete YSM body pose. */
@@ -269,7 +289,8 @@ public final class CompatHumanoidMesh extends HumanoidMesh {
                         auxiliaryPoses.authoredHeldItemPose(
                                 complete, HumanoidRig.LEFT_TOOL));
                 Set<InteractionHand> displayedItemSwitchHands = currentItemSwitchHands;
-                if (frame != null && movementPoseTransition != null) {
+                if (frame != null && movementPoseTransition != null
+                        && !MotionRulesClient.snapshot().rules().enabled()) {
                     displayedItemSwitchHands = movementPoseTransition.apply(
                             frame.entity(), frame.firstPerson(),
                             frame.renderingInInventory(),
@@ -281,6 +302,16 @@ public final class CompatHumanoidMesh extends HumanoidMesh {
                                     && !isModAnimationPose(animationFrame), auxiliaryPoses, complete);
                 }
                 if (frame != null) {
+                    if (IssueReportCapture.wantsFrame(frame) && RenderFrameContext.isPrimaryBodyDraw(this)) {
+                        IssueReportCapture.draw(frame, modelId, boneLayout, inputPoses, complete,
+                                animationFrame, partialTick, boneLayout.horizontalScale(),
+                                boneLayout.verticalScale(), meshScale, matrices.last().pose(),
+                                texture == null ? null : texture.toString(),
+                                allParts.stream().filter(part -> part.getValue().isHidden()
+                                                && part.getKey().startsWith(SkinMeshCompiler.BONE_PART_PREFIX))
+                                        .map(part -> part.getKey().substring(SkinMeshCompiler.BONE_PART_PREFIX.length()))
+                                        .collect(java.util.stream.Collectors.toSet()));
+                    }
                     parallelAnimations.publishBoneQueries(frame.entity(), complete,
                             animationFrame == null ? Set.of() : animationFrame.hiddenBones(),
                             frame.renderingInInventory());
@@ -305,7 +336,9 @@ public final class CompatHumanoidMesh extends HumanoidMesh {
                     boolean projectBodyAttachments = projectsDisplayedAttachments(
                             frame.epicFightActionActive(),
                             animationFrame != null
-                                    && animationFrame.replaceEpicFightPose());
+                                    && animationFrame.replaceEpicFightPose(),
+                            animationFrame != null
+                                    && MotionRulesClient.snapshot().rules().enabled());
                     OpenMatrix4f[] attachmentPoses = projectBodyAttachments
                             ? auxiliaryPoses.displayedAttachmentPoses(
                             armature, complete, inputPoses, meshScale,
@@ -562,7 +595,17 @@ public final class CompatHumanoidMesh extends HumanoidMesh {
     /** Keeps Epic Fight's action matrices unless YSM owns the complete displayed pose. */
     static boolean projectsDisplayedAttachments(
             boolean epicFightActionActive, boolean ysmReplacesEpicFightPose) {
-        return !epicFightActionActive || ysmReplacesEpicFightPose;
+        return projectsDisplayedAttachments(
+                epicFightActionActive, ysmReplacesEpicFightPose, false);
+    }
+
+    static boolean projectsDisplayedAttachments(
+            boolean epicFightActionActive, boolean ysmReplacesEpicFightPose,
+            boolean userRulesEnabled) {
+        // An extra layer may rotate the physical hand during an EF attack without
+        // replacing the body. Transport its live Tool frame by that added rotation,
+        // preserving EF's relative grip, rather than only moving the item origin.
+        return userRulesEnabled || !epicFightActionActive || ysmReplacesEpicFightPose;
     }
 
     /** Epic Fight deliberately renders its ordinary bow at the off-arm Tool joint. */

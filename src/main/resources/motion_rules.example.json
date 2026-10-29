@@ -1,0 +1,49 @@
+{
+  "$comment": "Copy to config/ysm_epicfight_compat/motion_rules.json. Enabled mode defaults to EF. Replace model IDs and bone names before enabling example rules.",
+  "schema_version": 1,
+  "enabled": true,
+  "default_pose": "epic_fight",
+  "overrides": [
+    {
+      "id": "native-controller",
+      "enabled": false,
+      "models": ["example/model"],
+      "priority": 50,
+      "source": {"kind": "controller", "id": "model:player.main"},
+      "playback": {"clock": "independent"}
+    },
+    {
+      "id": "native-swim",
+      "enabled": false,
+      "models": ["example/model"],
+      "priority": 100,
+      "when": {"movement": "swim"},
+      "source": {"kind": "authored_state", "state": "swim", "include_associated_layers": true, "head_tracking": "native"},
+      "transition": {"enter_seconds": 0.15, "exit_seconds": 0.15}
+    }
+  ],
+  "extras": [
+    {
+      "id": "author-hair",
+      "enabled": false,
+      "models": ["example/model"],
+      "order": 100,
+      "source": {"kind": "clip", "id": "model:parallel3"},
+      "target": {"bones": ["*Hair*"], "channels": ["rotation"]},
+      "blend": {"mode": "replace_local_channels", "weight": 1},
+      "playback": {"clock": "authored"}
+    },
+    {
+      "id": "attack-cape",
+      "enabled": false,
+      "models": ["example/model"],
+      "order": 200,
+      "when": {"ef_animation": "example:greatsword_attack"},
+      "source": {"kind": "clip", "id": "ysm_epicfight_compat:example_cape_swing"},
+      "target": {"bones": ["Cape"], "channels": ["rotation"]},
+      "blend": {"mode": "additive", "reference": "neutral", "weight": 0.7},
+      "playback": {"clock": "ef", "ef_animation": "example:greatsword_attack"},
+      "transition": {"enter_seconds": 0.05, "exit_seconds": 0.15}
+    }
+  ]
+}

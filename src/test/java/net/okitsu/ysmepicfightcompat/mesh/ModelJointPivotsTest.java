@@ -192,9 +192,10 @@ class ModelJointPivotsTest {
     }
 
     @Test
-    void derivesScaledShoulderPivotFromTheUpperArmTopRing() {
+    void derivesScaledShoulderPivotFromTheAuthoredUpperArmControl() {
         GeometryDocument geometry = new GeometryDocument();
         GeometryDocument.Bone arm = faceBone("RightArm", 1.0F, 3.0F, 1.0F, 2.0F);
+        arm.pivot(1.5F, 1.8F, 0.2F);
         GeometryDocument.Bone alternate = faceBone("RightArm2", 20.0F, 30.0F, 20.0F, 30.0F);
         geometry.add(arm);
         geometry.add(alternate);
@@ -204,9 +205,9 @@ class ModelJointPivotsTest {
 
         Vector3f shoulder = pivots.get(HumanoidRig.RIGHT_SHOULDER);
         Vector3f armPivot = pivots.get(HumanoidRig.RIGHT_ARM);
-        assertEquals(4.0F, shoulder.x(), 0.00001F);
-        assertEquals(6.0F, shoulder.y(), 0.00001F);
-        assertEquals(0.0F, shoulder.z(), 0.00001F);
+        assertEquals(3.0F, shoulder.x(), 0.00001F);
+        assertEquals(5.4F, shoulder.y(), 0.00001F);
+        assertEquals(0.4F, shoulder.z(), 0.00001F);
         assertEquals(shoulder, armPivot);
         assertFalse(pivots.containsKey(HumanoidRig.LEFT_ARM));
     }
@@ -214,13 +215,94 @@ class ModelJointPivotsTest {
     @Test
     void includesDefaultFormSegmentsInPivotEstimation() {
         GeometryDocument geometry = new GeometryDocument();
-        geometry.add(faceBone("LeftArm_Default", -3.0F, -1.0F, 1.0F, 2.0F));
+        GeometryDocument.Bone arm = faceBone("LeftArm_Default", -3.0F, -1.0F, 1.0F, 2.0F);
+        arm.pivot(-1.5F, 1.8F, 0.2F);
+        geometry.add(arm);
         geometry.linkHierarchy();
 
         Map<Integer, Vector3f> pivots = ModelJointPivots.estimate(geometry, 1.0F, 1.0F);
 
-        assertEquals(-2.0F, pivots.get(HumanoidRig.LEFT_ARM).x(), 0.00001F);
-        assertEquals(2.0F, pivots.get(HumanoidRig.LEFT_ARM).y(), 0.00001F);
+        assertEquals(-1.5F, pivots.get(HumanoidRig.LEFT_ARM).x(), 0.00001F);
+        assertEquals(1.8F, pivots.get(HumanoidRig.LEFT_ARM).y(), 0.00001F);
+    }
+
+    @Test
+    void fallsBackToTheTopRingWhenAuthoredShoulderAliasesConflict() {
+        GeometryDocument geometry = new GeometryDocument();
+        GeometryDocument.Bone primary = faceBone("RightArm", 0.0F, 2.0F, 0.0F, 2.0F);
+        primary.pivot(20.0F, 20.0F, 0.0F);
+        GeometryDocument.Bone defaultForm = faceBone(
+                "RightArm_Default", 10.0F, 12.0F, 0.0F, 2.0F);
+        defaultForm.pivot(-20.0F, -20.0F, 0.0F);
+        geometry.add(primary);
+        geometry.add(defaultForm);
+        geometry.linkHierarchy();
+
+        Map<Integer, Vector3f> pivots = ModelJointPivots.estimate(geometry, 1.0F, 1.0F);
+
+        Vector3f fallbackTopRing = new Vector3f(6.0F, 2.0F, 0.0F);
+        assertVectorEquals(fallbackTopRing, pivots.get(HumanoidRig.RIGHT_SHOULDER));
+        assertVectorEquals(fallbackTopRing, pivots.get(HumanoidRig.RIGHT_ARM));
+    }
+
+    @Test
+    void usesTheAuthoredForearmPivotForBothHandAndElbowJoints() {
+        GeometryDocument geometry = new GeometryDocument();
+        GeometryDocument.Bone arm = bone("RightArm", "", 0.0F, 0.0F, 0.0F);
+        GeometryDocument.Bone forearm = faceBone(
+                "RightForeArm", -1.0F, 1.0F, 0.0F, 2.0F);
+        forearm.parentName("RightArm");
+        forearm.pivot(0.25F, 0.5F, 0.3F);
+        geometry.add(arm);
+        geometry.add(forearm);
+        geometry.linkHierarchy();
+
+        Map<Integer, Vector3f> pivots = ModelJointPivots.estimate(geometry, 1.0F, 1.0F);
+
+        Vector3f authoredForearmPivot = new Vector3f(0.25F, 0.5F, 0.3F);
+        assertVectorEquals(authoredForearmPivot, pivots.get(HumanoidRig.RIGHT_HAND));
+        assertVectorEquals(authoredForearmPivot, pivots.get(HumanoidRig.RIGHT_ELBOW));
+    }
+
+    @Test
+    void fallsBackToTheForearmTopRingWhenAuthoredForearmAliasesConflict() {
+        GeometryDocument geometry = new GeometryDocument();
+        GeometryDocument.Bone primary = faceBone(
+                "LeftForeArm", -1.0F, 1.0F, 0.0F, 2.0F);
+        primary.pivot(20.0F, 20.0F, 0.0F);
+        GeometryDocument.Bone alias = faceBone(
+                "ForeArmLeft", -1.0F, 1.0F, 3.0F, 5.0F);
+        alias.pivot(-20.0F, -20.0F, 0.0F);
+        geometry.add(primary);
+        geometry.add(alias);
+        geometry.linkHierarchy();
+
+        Map<Integer, Vector3f> pivots = ModelJointPivots.estimate(geometry, 1.0F, 1.0F);
+
+        Vector3f fallbackTopRing = new Vector3f(0.0F, 5.0F, 0.0F);
+        assertVectorEquals(fallbackTopRing, pivots.get(HumanoidRig.LEFT_HAND));
+        assertVectorEquals(fallbackTopRing, pivots.get(HumanoidRig.LEFT_ELBOW));
+    }
+
+    @Test
+    void ignoresAlternateWrongBranchAndHandPivotsAsAuthoredElbowCandidates() {
+        GeometryDocument geometry = new GeometryDocument();
+        GeometryDocument.Bone leftArm = bone("LeftArm", "", -2.0F, 3.0F, 0.0F);
+        GeometryDocument.Bone wrongBranch = bone(
+                "RightForeArm", "LeftArm", 50.0F, 60.0F, 0.0F);
+        GeometryDocument.Bone alternate = bone(
+                "RightForeArm2_Default", "", 70.0F, 80.0F, 0.0F);
+        GeometryDocument.Bone hand = bone("RightHand", "", 90.0F, 100.0F, 0.0F);
+        geometry.add(leftArm);
+        geometry.add(wrongBranch);
+        geometry.add(alternate);
+        geometry.add(hand);
+        geometry.linkHierarchy();
+
+        Map<Integer, Vector3f> pivots = ModelJointPivots.estimate(geometry, 1.0F, 1.0F);
+
+        assertFalse(pivots.containsKey(HumanoidRig.RIGHT_HAND));
+        assertFalse(pivots.containsKey(HumanoidRig.RIGHT_ELBOW));
     }
 
     @Test
@@ -538,7 +620,7 @@ class ModelJointPivotsTest {
     }
 
     @Test
-    void preservesTheStandardArmSeamButUsesTheAuthoredPivotForExtendedArmatures() {
+    void usesTheSameAuthoredShoulderPivotForStandardAndExtendedArmatures() {
         GeometryDocument geometry = new GeometryDocument();
         GeometryDocument.Bone arm = faceBone("RightArm", -1.0F, 1.0F, 1.0F, 2.0F);
         arm.pivot(-0.5F, 1.25F, 0.25F);
@@ -548,7 +630,7 @@ class ModelJointPivotsTest {
         ModelJointPivots.Estimate estimate = ModelJointPivots.estimateWithSources(
                 geometry, 0.5F, 0.75F);
 
-        assertVectorEquals(new Vector3f(0.0F, 1.5F, 0.0F),
+        assertVectorEquals(new Vector3f(-0.25F, 0.9375F, 0.125F),
                 estimate.pivots().get(HumanoidRig.RIGHT_ARM));
         assertVectorEquals(new Vector3f(-0.25F, 0.9375F, 0.125F),
                 estimate.extendedArmaturePivots().get(HumanoidRig.RIGHT_SHOULDER));

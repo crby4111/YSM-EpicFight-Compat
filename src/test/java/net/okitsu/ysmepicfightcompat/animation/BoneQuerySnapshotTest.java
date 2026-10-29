@@ -44,12 +44,15 @@ class BoneQuerySnapshotTest {
     @Test
     void snapshotAllocationIsBoundedByTheRendererPoseLimit() {
         Map<String, BoneQuerySnapshot.BoneValues> source = new LinkedHashMap<>();
-        for (int index = 0; index < 1001; index++) {
+        int limit=net.okitsu.ysmepicfightcompat.mesh.AuxiliaryBoneLayout.MAX_MODEL_BONES;
+        for (int index = 0; index <= limit; index++) {
             source.put("bone" + index, new BoneQuerySnapshot.BoneValues(
                     new Vec3(1, 1, 1), null, null, null));
         }
         BoneQuerySnapshot snapshot = new BoneQuerySnapshot(source);
         assertEquals(1.0D, snapshot.query("ysm.bone_rot", "bone999").get("x"));
-        assertEquals(0.0D, snapshot.query("ysm.bone_rot", "bone1000").get("x"));
+        assertEquals(1.0D, snapshot.query("ysm.bone_rot", "bone1973").get("x"));
+        assertEquals(1.0D, snapshot.query("ysm.bone_rot", "bone"+(limit-1)).get("x"));
+        assertEquals(0.0D, snapshot.query("ysm.bone_rot", "bone"+limit).get("x"));
     }
 }

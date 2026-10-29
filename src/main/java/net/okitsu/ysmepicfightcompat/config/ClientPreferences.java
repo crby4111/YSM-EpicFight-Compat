@@ -21,6 +21,7 @@ public final class ClientPreferences {
     public static final String CONFIG_FILE =
             "ysm_epicfight_compat/ysm_epicfight_compat-client.toml";
     public static final ForgeConfigSpec CLIENT_SPEC;
+    public static final ForgeConfigSpec.ConfigValue<String> ISSUE_REPORT_DIRECTORY;
     public static final ForgeConfigSpec.ConfigValue<Integer>
             CLIENT_MODEL_MEMORY_CACHE_TARGET_COUNT;
     public static final ForgeConfigSpec.ConfigValue<Integer>
@@ -88,6 +89,12 @@ public final class ClientPreferences {
         config.comment("Client preferences.")
                 .translation("config.ysm_epicfight_compat.client")
                 .push("client");
+        ISSUE_REPORT_DIRECTORY = config
+                .comment("Local issue reports requested with the report key or /ysmcompat report.",
+                        "Relative paths follow this game instance; an absolute path can select another disk.",
+                        "No reports are uploaded. Default: ysmcompat-reports")
+                .define("issueReportDirectory", "ysmcompat-reports",
+                        value -> value instanceof String path && !path.isBlank() && path.length() <= 4096);
         SUPPRESS_BATTLE_MODE_OVERLAY = config
                 .comment("Suppress official YSM's extra player overlay while Epic Fight battle mode is active.",
                         "Set this to false to let official YSM render the overlay again.",

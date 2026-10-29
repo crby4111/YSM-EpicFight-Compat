@@ -29,6 +29,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class EntityAnimationEnvironmentTest {
     @Test
+    void parkourControllerStatesKeepTheirStringTypeAndNativeShortName() {
+        assertEquals("",EntityAnimationEnvironment.parCoolControllerValue(null));
+        assertEquals("",EntityAnimationEnvironment.parCoolControllerValue("swem:walk"));
+        assertEquals("",EntityAnimationEnvironment.parCoolControllerValue("parcool:unrecognized"));
+        assertEquals("fast_swim",EntityAnimationEnvironment.parCoolControllerValue("parcool:fast_swim"));
+        assertEquals("roll_front",EntityAnimationEnvironment.parCoolControllerValue("parcool:roll_front"));
+    }
+    @Test
     void previewEffectsCannotBeEnabledByAnAnimationSoundScope() {
         assertFalse(EntityAnimationEnvironment.permitsExternalEffects(true));
         assertTrue(EntityAnimationEnvironment.permitsExternalEffects(false));

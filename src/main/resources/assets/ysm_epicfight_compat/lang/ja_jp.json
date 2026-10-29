@@ -1,4 +1,12 @@
 {
+  "key.categories.ysm_epicfight_compat": "YSM Epic Fight互換",
+  "key.ysm_epicfight_compat.report": "モデル・アニメーションの問題を記録",
+  "message.ysm_epicfight_compat.report.world_required": "ワールドに入ってから問題を記録してください。",
+  "message.ysm_epicfight_compat.report.busy": "記録中です。少し待ってから再試行してください。",
+  "message.ysm_epicfight_compat.report.armed": "次のモデル描画を記録します。ゲーム画面を開いたままにしてください。",
+  "message.ysm_epicfight_compat.report.cancelled": "ワールドまたはプレイヤーが変わったため、記録を中止しました。",
+  "message.ysm_epicfight_compat.report.failed": "記録を保存できませんでした。最新のログを確認してください。",
+  "message.ysm_epicfight_compat.report.saved": "記録を保存しました：%s",
   "config.ysm_epicfight_compat.client": "クライアント",
   "config.ysm_epicfight_compat.client.tooltip": "クライアント側のYSMとEpic Fightの互換設定です。",
   "config.ysm_epicfight_compat.client.cache": "キャッシュ",

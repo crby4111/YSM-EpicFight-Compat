@@ -22,6 +22,52 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AuxiliaryPoseMatricesTest {
     @Test
+    void ruleExtraTransportsAnAttackingToolWithTheDisplayedHand() {
+        AuxiliaryBoneLayout layout = rightToolLayout(0.0F, 1.0F, 1.0F);
+        Armature armature = gripArmature();
+        OpenMatrix4f[] bind = bindPoses(armature);
+        OpenMatrix4f[] poses = copy(bind);
+        poses[HumanoidRig.RIGHT_TOOL]
+                .rotateDeg(23.0F, Vec3f.Y_AXIS)
+                .scale(0.7F, 1.3F, 0.85F)
+                .mulBack(gripResidual());
+        OpenMatrix4f[] original = copy(poses);
+        Matrix4f extra = new Matrix4f().rotateX((float) Math.toRadians(-35.0F));
+        OpenMatrix4f[] complete = AuxiliaryPoseMatrices.allocate(layout.totalPoseCount());
+        complete[layout.attachmentEntry(HumanoidRig.RIGHT_TOOL).poseIndex()]
+                .load(OpenMatrix4f.importFromMojangMatrix(extra));
+        AuxiliaryPoseMatrices matrices = new AuxiliaryPoseMatrices(layout);
+        Vector3f fist = matrices.displayedFist(complete, HumanoidRig.RIGHT_TOOL);
+        assertNotNull(fist);
+
+        // Same routing as the mesh: EF is attacking and only an extra layer is
+        // active, so there is no full-body override. The old route moved the fist
+        // but left the weapon basis unrotated.
+        OpenMatrix4f[] attachments =
+                CompatHumanoidMesh.projectsDisplayedAttachments(true, false, true)
+                        ? matrices.displayedAttachmentPoses(
+                                armature, complete, poses, 1.0F, false, false)
+                        : matrices.heldItemAttachmentPoses(
+                                armature, poses, fist, null, null, null, 1.0F);
+        assertNotNull(attachments);
+        OpenMatrix4f expected = OpenMatrix4f.importFromMojangMatrix(
+                new Matrix4f(extra).mul(OpenMatrix4f.exportToMojangMatrix(
+                        poses[HumanoidRig.RIGHT_TOOL])));
+        Vector3f offset = new Vector3f(
+                poses[HumanoidRig.RIGHT_TOOL].m30 - bind[HumanoidRig.RIGHT_TOOL].m30,
+                poses[HumanoidRig.RIGHT_TOOL].m31 - bind[HumanoidRig.RIGHT_TOOL].m31,
+                poses[HumanoidRig.RIGHT_TOOL].m32 - bind[HumanoidRig.RIGHT_TOOL].m32);
+        extra.transformDirection(offset);
+        expected.m30 = fist.x() + offset.x();
+        expected.m31 = fist.y() + offset.y();
+        expected.m32 = fist.z() + offset.z();
+        assertMatrixNear(expected, attachments[HumanoidRig.RIGHT_TOOL], 0.00002F);
+        for (int joint = 0; joint < poses.length; joint++) {
+            assertMatrixEquals(original[joint], poses[joint]);
+        }
+    }
+
+    @Test
     void keepsAllHeadAndItsNeckGeometryOnTheChestWhileTheHeadTurns() {
         AuxiliaryBoneLayout layout = neckAndMovingHeadLayout();
         for (float[] angles : new float[][]{{0.0F, 35.0F}, {-25.0F, 0.0F}, {-25.0F, 35.0F}}) {

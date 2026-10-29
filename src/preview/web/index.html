@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>YSM 动作预览台</title><link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header><div class="brand"><span class="brand-mark">Y</span><div><h1>动作预览台</h1><p>YSM × Epic Fight</p></div></div><div class="header-right"><span class="dot"></span>本机离线重建<span class="tag">实验版</span></div></header>
+<main>
+  <aside>
+    <section><div class="section-title"><span>01</span><h2>选择模型</h2></div>
+      <label for="root">模型库目录</label><div class="path-row"><input id="root" placeholder="yes_steve_model 目录" spellcheck="false"><button id="browse" title="浏览模型库目录">浏览</button></div>
+      <button id="scan" class="quiet wide">读取模型列表</button>
+      <label for="model">模型</label><select id="model" aria-label="模型"></select>
+      <div class="metrics" id="metrics">等待载入</div>
+      <label for="texture">贴图</label><select id="texture"></select>
+    </section>
+    <section><div class="section-title"><span>02</span><h2>选择动作</h2></div>
+      <label for="search">史诗战斗动作</label><input id="search" type="search" placeholder="搜索 idle、swim、greatsword…">
+      <select id="epic" size="7" aria-label="史诗战斗动作"></select>
+      <div class="inline"><label for="movement">移动状态</label><select id="movement"><option value="auto">随所选动作</option><option>idle</option><option>walk</option><option>run</option><option>sneak_idle</option><option>sneak_move</option><option>jump</option><option>swim</option><option>water_idle</option><option>creative_flight</option><option>elytra_flight</option><option>crawl_idle</option><option>crawl_move</option><option>ladder_idle</option><option>ladder_up</option><option>ladder_down</option></select></div>
+      <div class="checks"><label><input id="attacking" type="checkbox">攻击中</label><label><input id="hurt" type="checkbox">受伤中</label></div>
+      <details class="context-options"><summary>运动与转身输入</summary>
+        <label for="yawSpeed">转身速度（度/秒）</label><input id="yawSpeed" type="number" min="-7200" max="7200" value="0">
+        <label for="velocityX">横向速度 X（格/秒）</label><input id="velocityX" type="number" min="-1000" max="1000" step="0.1" value="0">
+        <label for="velocityY">竖向速度 Y（格/秒）</label><input id="velocityY" type="number" min="-1000" max="1000" step="0.1" placeholder="随移动状态">
+        <label for="velocityZ">前后速度 Z（格/秒）</label><input id="velocityZ" type="number" min="-1000" max="1000" step="0.1" placeholder="随移动状态">
+        <p class="muted">受控输入会驱动位置变化、转身和物理；每次重建从新的物理状态开始。</p>
+      </details>
+      <details class="context-options"><summary>持物与使用条件</summary><label for="item">主手物品 ID</label><input id="item" value="minecraft:air" spellcheck="false"><div class="checks"><label><input id="usingItem" type="checkbox">使用物品</label><label><input id="battleMode" type="checkbox" checked>战斗模式</label></div><p class="muted">用于匹配规则条件，暂不绘制手持物品。</p></details>
+    </section>
+    <section><div class="section-title"><span>03</span><h2>对照方式</h2></div>
+      <label for="mode">右侧显示</label><select id="mode"><option value="rules">当前动作规则</option><option value="clip">指定模型片段</option><option value="controller">指定模型控制器</option><option value="ef">EF 基础姿态</option></select>
+      <div id="clipRow" hidden><label for="clip">模型自带片段</label><select id="clip"></select></div>
+      <div id="controllerRow" hidden><label for="controller">模型声明的控制器</label><select id="controller"></select></div>
+      <button id="rebuild" class="primary wide">重建当前动作</button>
+      <button id="loadReport" class="quiet wide">查看 F9 问题记录</button><input id="reportFile" type="file" accept=".json,application/json" hidden>
+    </section>
+  </aside>
+  <article>
+    <div class="stage-heading"><div><span class="eyebrow">MOTION STUDY</span><h2 id="modelName">正在准备模型</h2></div><div class="view-controls"><button data-view="front">正面</button><button data-view="side">侧面</button><button data-view="back">背面</button><button id="fit">适合窗口</button></div></div>
+    <div id="error" class="error" role="alert" hidden></div>
+    <div id="warning" class="warning" hidden></div>
+    <div class="stage" id="stage">
+      <div class="panel-labels"><span>EF 基础<span class="sub-label">保留模型外观</span></span><span id="rightLabel">当前动作规则<span class="sub-label">相同动作与输入</span></span></div>
+      <canvas id="scene" aria-label="模型动作双画面对照"></canvas><div class="divider"></div>
+      <div class="viewport-hint">拖动旋转 · 滚轮缩放 · Shift + 拖动平移</div>
+      <div id="busy" class="busy"><div class="spinner"></div><span id="busyText">正在载入</span></div>
+    </div>
+    <div class="playback"><button id="play" class="play" aria-label="播放">播放</button><button id="previous" title="上一帧">‹</button><button id="next" title="下一帧">›</button><input id="timeline" type="range" min="0" max="0" value="0" aria-label="动画时间"><output id="time">0.00 / 0.00 秒</output><select id="speed" aria-label="播放速度"><option value=".25">0.25 倍</option><option value=".5">0.5 倍</option><option value="1" selected>1 倍</option></select><label class="loop"><input id="loop" type="checkbox" checked>循环</label></div>
+    <div class="facts-row"><label>头部俯仰 <input id="pitch" type="range" min="-75" max="75" value="0"><output id="pitchValue">0°</output></label><label>头部偏转 <input id="yaw" type="range" min="-90" max="90" value="0"><output id="yawValue">0°</output></label><label>采样时长 <select id="seconds"><option value="auto">按动作时长</option><option value="2">2 秒</option><option value="4">4 秒</option><option value="8">8 秒</option></select></label><label><input id="wire" type="checkbox">骨骼连接</label></div>
+    <div class="info-panel"><div class="section-title"><span class="live-dot"></span><h2>当前帧</h2></div><p id="diagnostic">等待动作采样</p><details id="unknownDetails" hidden><summary>查看未重建的查询与效果</summary><p id="unknown"></p></details></div>
+    <details class="rules-panel" open><summary><strong>动作规则</strong><span>只在预览台生效</span></summary><p class="muted">可载入上一版的 motion_rules.json，或修改下方内容后重建。不会写回游戏配置。</p><textarea id="rules" spellcheck="false" aria-label="动作规则 JSON"></textarea><div class="rule-actions"><button id="import">载入规则文件</button><button id="export">导出规则文件</button><button id="demoRules">示例：叠加披风与尾巴</button><button id="emptyRules">清空规则</button><input id="ruleFile" type="file" accept=".json,application/json" hidden></div><div class="asset-row"><label for="assetNamespace">额外动作命名空间</label><input id="assetNamespace" value="preview" spellcheck="false"><button id="loadAnimations">载入额外动作 JSON</button><span id="assetStatus">已内置上一版披风示例</span><input id="animationsFile" type="file" accept=".json,application/json" multiple hidden></div></details>
+    <footer>共用当前兼容模组的网格与规则计算。这里展示受控输入下的第三人称姿态；完整控制器、武器、光影与游戏事件尚未重建。模型容量不足或查询未支持时会单独提示。</footer>
+  </article>
+</main>
+<script type="module" src="/app.js"></script>
+</body></html>
